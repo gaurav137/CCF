@@ -7,6 +7,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
+#include "ccf/js/common_context.h"
 #include "crypto/sharing.h"
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
@@ -165,6 +166,8 @@ namespace ccf
     SharesMap compute_encrypted_shares(
       ccf::kv::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
     {
+        LOG_INFO_FMT("Going to compute_encrypted_shares");
+
       EncryptedSharesMap encrypted_shares;
       EncryptedMultipleSharesMap encrypted_multiple_shares;
 
@@ -176,14 +179,47 @@ namespace ccf
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
       {
+        auto num_shares_to_assign = get_num_shares_to_assign(
+          tx,
+          member_id,
+          ls_wrapping_key.get_num_shares(),
+          ls_wrapping_key.get_recovery_threshold());
+
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
-        auto raw_share = std::vector<uint8_t>(
-          shares[share_index].begin(), shares[share_index].end());
-        auto wrapped_raw_share = member_enc_pubk->rsa_oaep_wrap(raw_share);
-        encrypted_shares[member_id] = wrapped_raw_share;
-        encrypted_multiple_shares[member_id] = std::vector<EncryptedShare>();
-        encrypted_multiple_shares[member_id].push_back(wrapped_raw_share);
-        OPENSSL_cleanse(raw_share.data(), raw_share.size());
+        if (num_shares_to_assign == 1)
+        {
+          auto raw_share = std::vector<uint8_t>(
+            shares[share_index].begin(), shares[share_index].end());
+          auto wrapped_raw_share = member_enc_pubk->rsa_oaep_wrap(raw_share);
+          encrypted_shares[member_id] = wrapped_raw_share;
+          OPENSSL_cleanse(raw_share.data(), raw_share.size());
+        } else {
+          LOG_INFO_FMT(
+            "Going to assign {} shares to {}. share_index at:{}",
+            num_shares_to_assign,
+            member_id.value(),
+            share_index);
+          encrypted_multiple_shares[member_id] = std::vector<EncryptedShare>();
+          for (size_t i = 0, j = share_index; i < num_shares_to_assign; i++)
+          {
+            LOG_INFO_FMT("Assigning shares[{}] ", j);
+            auto raw_share = std::vector<uint8_t>(
+              shares[j].begin(), shares[j].end());
+            auto wrapped_raw_share = member_enc_pubk->rsa_oaep_wrap(raw_share);
+            encrypted_multiple_shares[member_id].push_back(wrapped_raw_share);
+            OPENSSL_cleanse(raw_share.data(), raw_share.size());
+  
+            // Move in a circular manner starting from share_index.
+            j = (j + 1) % active_recovery_members_info.size();
+          }
+        }
+
+        share_index++;
+      }
+
+      share_index = 0;
+      for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
+      {
         OPENSSL_cleanse(shares[share_index].data(), shares[share_index].size());
         share_index++;
       }
@@ -434,6 +470,81 @@ namespace ccf
       return single_shares + multiple_shares;
     }
 
+    size_t get_num_shares_to_assign(
+      ccf::kv::Tx& tx,
+      MemberId member_id,
+      size_t num_shares,
+      size_t recovery_threshold)
+    {
+      const auto constitution =
+        tx.ro<ccf::Constitution>(ccf::Tables::CONSTITUTION)
+          ->get();
+        if (!constitution.has_value())
+        {
+          throw std::logic_error(
+            "No constitution is set - number of shares to assign cannot be evaluated");
+        }
+
+      js::CommonContextWithLocalTx js_context(js::TxAccess::GOV_RO, &tx);
+
+      js::core::JSWrappedValue num_shares_to_assign_func;
+      try
+      {
+        num_shares_to_assign_func = js_context.get_exported_function(
+          constitution.value(),
+          "num_shares_to_assign",
+          fmt::format("{}[0]", ccf::Tables::CONSTITUTION));        
+      }
+      catch (const std::exception& e)
+      {
+        // TODO (gsinha): Handle absense of the method in a better way rather than
+        // blanket catch statement above.
+        LOG_FAIL_FMT("Exception locating the num_shares_to_assign func: {}", e.what());
+        return 1;
+      }      
+
+      std::vector<js::core::JSWrappedValue> argv;
+      argv.push_back(js_context.new_string(member_id.value()));
+      argv.push_back(js_context.new_string(std::to_string(num_shares)));
+      argv.push_back(js_context.new_string(std::to_string(recovery_threshold)));
+
+      auto val = js_context.call_with_rt_options(
+        num_shares_to_assign_func,
+        argv,
+        tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
+        js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+
+      if (val.is_exception())
+      {
+        auto [reason, trace] = js_context.error_message();
+        if (js_context.interrupt_data.request_timed_out)
+        {
+          reason = "Operation took too long to complete.";
+        }
+
+        // TODO (gsinha): How to expose trace variable?
+        throw std::logic_error(
+          fmt::format("Failed to  num_shares_to_assign(): {}", reason));
+      }
+
+      auto num_value_string = js_context.to_str(val).value_or("1");
+      std::stringstream sstream(num_value_string);
+      size_t result;
+      sstream >> result;
+
+      if (result < 1 || result > recovery_threshold)
+      {
+        LOG_FAIL_FMT(
+          "Value returned was {} but expecting between {} and {}. Defaulting to 1.",
+          result,
+          1,
+          recovery_threshold);
+        return 1;
+      }
+
+      return result;
+    }
+
   public:
     ShareManager(const std::shared_ptr<LedgerSecrets>& ledger_secrets_) :
       ledger_secrets(ledger_secrets_)
@@ -629,7 +740,7 @@ namespace ccf
     {
       auto service = tx.rw<ccf::Service>(Tables::SERVICE);
       auto encrypted_submitted_multiple_shares = tx.rw<ccf::EncryptedSubmittedMultipleShares>(
-        Tables::ENCRYPTED_SUBMITTED_MULTIPLE_SHARES);
+        Tables::ENCRYPTED_SUBMITTED_MULTIPLE_SHARES); 
       auto active_service = service->get();
       if (!active_service.has_value())
       {
