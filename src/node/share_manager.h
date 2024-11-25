@@ -140,6 +140,12 @@ namespace ccf
     }
   };
 
+   struct SharesMap
+   {
+      EncryptedSharesMap encrypted_shares_map;
+      EncryptedMultipleSharesMap encrypted_multiple_shares_map;
+   };
+
   // During recovery, a list of EncryptedLedgerSecretInfo is constructed
   // from the local hook on the encrypted ledger secrets table.
   using RecoveredEncryptedLedgerSecrets = std::list<EncryptedLedgerSecretInfo>;
@@ -156,10 +162,12 @@ namespace ccf
   private:
     std::shared_ptr<LedgerSecrets> ledger_secrets;
 
-    EncryptedSharesMap compute_encrypted_shares(
+    SharesMap compute_encrypted_shares(
       ccf::kv::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
     {
       EncryptedSharesMap encrypted_shares;
+      EncryptedMultipleSharesMap encrypted_multiple_shares;
+
       auto shares = ls_wrapping_key.get_shares();
 
       auto active_recovery_members_info =
@@ -171,13 +179,19 @@ namespace ccf
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
-        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
+        auto wrapped_raw_share = member_enc_pubk->rsa_oaep_wrap(raw_share);
+        encrypted_shares[member_id] = wrapped_raw_share;
+        encrypted_multiple_shares[member_id] = std::vector<EncryptedShare>();
+        encrypted_multiple_shares[member_id].push_back(wrapped_raw_share);
         OPENSSL_cleanse(raw_share.data(), raw_share.size());
         OPENSSL_cleanse(shares[share_index].data(), shares[share_index].size());
         share_index++;
       }
 
-      return encrypted_shares;
+      SharesMap sharesMap;
+      sharesMap.encrypted_shares_map = encrypted_shares;
+      sharesMap.encrypted_multiple_shares_map = encrypted_multiple_shares;
+      return sharesMap;
     }
 
     void shuffle_recovery_shares(
@@ -217,10 +231,12 @@ namespace ccf
 
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
       auto recovery_shares = tx.rw<ccf::RecoveryShares>(Tables::SHARES);
+      auto shares_map = compute_encrypted_shares(tx, ls_wrapping_key);
       recovery_shares->put(
         {wrapped_latest_ls,
-         compute_encrypted_shares(tx, ls_wrapping_key),
-         latest_ledger_secret->previous_secret_stored_version});
+         shares_map.encrypted_shares_map,
+         latest_ledger_secret->previous_secret_stored_version,
+         shares_map.encrypted_multiple_shares_map});
     }
 
     void set_recovery_shares_info(
@@ -315,6 +331,8 @@ namespace ccf
     {
       auto encrypted_submitted_shares = tx.rw<ccf::EncryptedSubmittedShares>(
         Tables::ENCRYPTED_SUBMITTED_SHARES);
+      auto encrypted_submitted_multiple_shares = tx.rw<ccf::EncryptedSubmittedMultipleShares>(
+        Tables::ENCRYPTED_SUBMITTED_MULTIPLE_SHARES);
       auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
       std::vector<ccf::crypto::sharing::Share> new_shares = {};
@@ -362,6 +380,19 @@ namespace ccf
           return true;
         });
 
+      encrypted_submitted_multiple_shares->foreach(
+        [&new_shares, &tx, this](
+          const MemberId, const std::vector<EncryptedSubmittedShare> encrypted_shares) {
+            for (auto &encrypted_share : encrypted_shares)
+            {
+              auto decrypted_share = decrypt_submitted_share(
+                encrypted_share, ledger_secrets->get_latest(tx).second);
+                new_shares.emplace_back(decrypted_share);
+              OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());              
+            }
+          return true;
+        });
+
       auto num_shares = std::max(old_shares.size(), new_shares.size());
 
       auto recovery_threshold = config->get()->recovery_threshold;
@@ -384,6 +415,23 @@ namespace ccf
         return LedgerSecretWrappingKey(
           std::move(old_shares), recovery_threshold);
       }
+    }
+
+    size_t total_submitted_shares(ccf::kv::Tx& tx)
+    {
+      auto encrypted_submitted_shares = tx.ro<ccf::EncryptedSubmittedShares>(
+        Tables::ENCRYPTED_SUBMITTED_SHARES);
+      auto encrypted_submitted_multiple_shares = tx.ro<ccf::EncryptedSubmittedMultipleShares>(
+        Tables::ENCRYPTED_SUBMITTED_MULTIPLE_SHARES);
+
+      size_t single_shares = encrypted_submitted_shares->size();
+      size_t multiple_shares = 0; 
+      encrypted_submitted_multiple_shares->foreach([&multiple_shares](auto key, auto value) {
+          multiple_shares += value.size();
+          return true;
+      });      
+
+      return single_shares + multiple_shares;
     }
 
   public:
@@ -447,6 +495,31 @@ namespace ccf
 
       auto search = recovery_shares_info->encrypted_shares.find(member_id);
       if (search == recovery_shares_info->encrypted_shares.end())
+      {
+        return std::nullopt;
+      }
+
+      return search->second;
+    }
+
+    static std::optional<std::vector<EncryptedShare>> get_multiple_encrypted_shares(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
+    {
+      auto recovery_shares_info =
+        tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
+      if (!recovery_shares_info.has_value())
+      {
+        throw std::logic_error(
+          "Failed to retrieve current recovery shares info");
+      }
+
+      if (!recovery_shares_info->encrypted_multiple_shares.has_value())
+      {
+        return std::nullopt;
+      }
+
+      auto search = recovery_shares_info->encrypted_multiple_shares->find(member_id);
+      if (search == recovery_shares_info->encrypted_multiple_shares->end())
       {
         return std::nullopt;
       }
@@ -546,7 +619,33 @@ namespace ccf
         encrypt_submitted_share(
           submitted_recovery_share, ledger_secrets->get_latest(tx).second));
 
-      return encrypted_submitted_shares->size();
+      return total_submitted_shares(tx);
+    }
+
+    size_t submit_multiple_recovery_shares(
+      ccf::kv::Tx& tx,
+      MemberId member_id,
+      const std::vector<std::vector<uint8_t>>& submitted_recovery_shares)
+    {
+      auto service = tx.rw<ccf::Service>(Tables::SERVICE);
+      auto encrypted_submitted_multiple_shares = tx.rw<ccf::EncryptedSubmittedMultipleShares>(
+        Tables::ENCRYPTED_SUBMITTED_MULTIPLE_SHARES);
+      auto active_service = service->get();
+      if (!active_service.has_value())
+      {
+        throw std::logic_error("Failed to get active service");
+      }
+
+      std::vector<std::vector<uint8_t>> encrypted_shares;
+      for (auto &submitted_recovery_share : submitted_recovery_shares)
+      {
+        encrypted_shares.emplace_back(encrypt_submitted_share(
+          submitted_recovery_share, ledger_secrets->get_latest(tx).second));
+      }
+
+      encrypted_submitted_multiple_shares->put(member_id, encrypted_shares);
+
+      return total_submitted_shares(tx);
     }
 
     static void clear_submitted_recovery_shares(ccf::kv::Tx& tx)
@@ -554,6 +653,9 @@ namespace ccf
       auto encrypted_submitted_shares = tx.rw<ccf::EncryptedSubmittedShares>(
         Tables::ENCRYPTED_SUBMITTED_SHARES);
       encrypted_submitted_shares->clear();
+      auto encrypted_submitted_multiple_shares = tx.rw<ccf::EncryptedSubmittedMultipleShares>(
+        Tables::ENCRYPTED_SUBMITTED_MULTIPLE_SHARES);
+      encrypted_submitted_multiple_shares->clear();
     }
   };
 }
