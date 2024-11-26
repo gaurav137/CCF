@@ -328,11 +328,12 @@ namespace ccf::gov::endpoints
             return;
           }
 
+          LOG_INFO_FMT("params: {}", params.dump());
           std::vector<std::vector<uint8_t>> raw_recovery_shares;
-          auto encoded_recovery_shares = params["shares"].template get<std::vector<std::string>>();
-          for (const auto& encoded_share : encoded_recovery_shares)
+          for (const auto& encoded_share : params["shares"])
           {
-              raw_recovery_shares.emplace_back(ccf::crypto::raw_from_b64(encoded_share));  
+              raw_recovery_shares.emplace_back(
+                ccf::crypto::raw_from_b64(encoded_share.template get<std::string>()));  
           }
 
           size_t submitted_shares_count = 0;
@@ -418,7 +419,7 @@ namespace ccf::gov::endpoints
       .make_endpoint(
         "/recovery/multiple-encrypted-shares/members/{memberId}:recover",
         HTTP_POST,
-        api_version_adapter(submit_recovery_share),
+        api_version_adapter(submit_multiple_recovery_shares),
         detail::active_member_sig_only_policies("recovery_share"))
       .set_openapi_hidden(true)
       .install();
