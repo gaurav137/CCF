@@ -147,6 +147,12 @@ namespace ccf
       EncryptedMultipleSharesMap encrypted_multiple_shares_map;
    };
 
+   struct SharesAssignment
+   {
+      bool assigned_by_callback;
+      size_t num_shares;
+   };
+
   // During recovery, a list of EncryptedLedgerSecretInfo is constructed
   // from the local hook on the encrypted ledger secrets table.
   using RecoveredEncryptedLedgerSecrets = std::list<EncryptedLedgerSecretInfo>;
@@ -166,7 +172,7 @@ namespace ccf
     SharesMap compute_encrypted_shares(
       ccf::kv::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
     {
-        LOG_INFO_FMT("Going to compute_encrypted_shares");
+        LOG_INFO_FMT("Computing encrypted shares");
 
       EncryptedSharesMap encrypted_shares;
       EncryptedMultipleSharesMap encrypted_multiple_shares;
@@ -179,39 +185,40 @@ namespace ccf
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
       {
-        auto num_shares_to_assign = get_num_shares_to_assign(
+        auto shares_assignment = get_num_shares_to_assign(
           tx,
           member_id,
           ls_wrapping_key.get_num_shares(),
           ls_wrapping_key.get_recovery_threshold());
 
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
-        if (num_shares_to_assign == 1)
+        if (shares_assignment.assigned_by_callback)
         {
+          // The callback can assign multiple shares to recovery member.
+          auto num_shares_to_assign = shares_assignment.num_shares;
+          LOG_INFO_FMT(
+            "Assigning {} share(s) to recovery member m[{}]",
+            num_shares_to_assign,
+            member_id.value());
+          encrypted_multiple_shares[member_id] = std::vector<EncryptedShare>();
+          for (size_t i = 0, j = share_index; i < num_shares_to_assign; i++)
+          {
+            auto raw_share = std::vector<uint8_t>(shares[j].begin(), shares[j].end());
+            auto wrapped_raw_share = member_enc_pubk->rsa_oaep_wrap(raw_share);
+            encrypted_multiple_shares[member_id].push_back(wrapped_raw_share);
+            OPENSSL_cleanse(raw_share.data(), raw_share.size());
+  
+            // Move in a circular manner starting from share_index so that we pick all
+            // shares atleast once.
+            j = (j + 1) % active_recovery_members_info.size();
+          }
+        } else {
+          // Default behavior w/o a callback is to assign 1 share to each recovery member.
           auto raw_share = std::vector<uint8_t>(
             shares[share_index].begin(), shares[share_index].end());
           auto wrapped_raw_share = member_enc_pubk->rsa_oaep_wrap(raw_share);
           encrypted_shares[member_id] = wrapped_raw_share;
           OPENSSL_cleanse(raw_share.data(), raw_share.size());
-        } else {
-          LOG_INFO_FMT(
-            "Going to assign {} shares to {}. share_index at:{}",
-            num_shares_to_assign,
-            member_id.value(),
-            share_index);
-          encrypted_multiple_shares[member_id] = std::vector<EncryptedShare>();
-          for (size_t i = 0, j = share_index; i < num_shares_to_assign; i++)
-          {
-            LOG_INFO_FMT("Assigning shares[{}] ", j);
-            auto raw_share = std::vector<uint8_t>(
-              shares[j].begin(), shares[j].end());
-            auto wrapped_raw_share = member_enc_pubk->rsa_oaep_wrap(raw_share);
-            encrypted_multiple_shares[member_id].push_back(wrapped_raw_share);
-            OPENSSL_cleanse(raw_share.data(), raw_share.size());
-  
-            // Move in a circular manner starting from share_index.
-            j = (j + 1) % active_recovery_members_info.size();
-          }
         }
 
         share_index++;
@@ -453,37 +460,21 @@ namespace ccf
       }
     }
 
-    size_t total_submitted_shares(ccf::kv::Tx& tx)
-    {
-      auto encrypted_submitted_shares = tx.ro<ccf::EncryptedSubmittedShares>(
-        Tables::ENCRYPTED_SUBMITTED_SHARES);
-      auto encrypted_submitted_multiple_shares = tx.ro<ccf::EncryptedSubmittedMultipleShares>(
-        Tables::ENCRYPTED_SUBMITTED_MULTIPLE_SHARES);
-
-      size_t single_shares = encrypted_submitted_shares->size();
-      size_t multiple_shares = 0; 
-      encrypted_submitted_multiple_shares->foreach([&multiple_shares](auto key, auto value) {
-          multiple_shares += value.size();
-          return true;
-      });      
-
-      return single_shares + multiple_shares;
-    }
-
-    size_t get_num_shares_to_assign(
+    SharesAssignment get_num_shares_to_assign(
       ccf::kv::Tx& tx,
       MemberId member_id,
       size_t num_shares,
       size_t recovery_threshold)
     {
+      auto share_assignment = SharesAssignment();
       const auto constitution =
         tx.ro<ccf::Constitution>(ccf::Tables::CONSTITUTION)
           ->get();
-        if (!constitution.has_value())
-        {
-          throw std::logic_error(
-            "No constitution is set - number of shares to assign cannot be evaluated");
-        }
+      if (!constitution.has_value())
+      {
+        throw std::logic_error(
+          "No constitution is set - number of shares to assign cannot be evaluated");
+      }
 
       js::CommonContextWithLocalTx js_context(js::TxAccess::GOV_RO, &tx);
 
@@ -500,7 +491,7 @@ namespace ccf
         // TODO (gsinha): Handle absense of the method in a better way rather than
         // blanket catch statement above.
         LOG_FAIL_FMT("Exception locating the num_shares_to_assign func: {}", e.what());
-        return 1;
+        return share_assignment;
       }      
 
       std::vector<js::core::JSWrappedValue> argv;
@@ -522,12 +513,12 @@ namespace ccf
           reason = "Operation took too long to complete.";
         }
 
-        // TODO (gsinha): How to expose trace variable?
+        // TODO (gsinha): How to expose trace variable for debugging?
         throw std::logic_error(
-          fmt::format("Failed to  num_shares_to_assign(): {}", reason));
+          fmt::format("Failed to num_shares_to_assign(): {}", reason));
       }
 
-      auto num_value_string = js_context.to_str(val).value_or("1");
+      auto num_value_string = js_context.to_str(val).value_or("0");
       std::stringstream sstream(num_value_string);
       size_t result;
       sstream >> result;
@@ -539,10 +530,16 @@ namespace ccf
           result,
           1,
           recovery_threshold);
-        return 1;
+        throw std::logic_error(fmt::format(
+          "Invalid return value from num_shares_to_assign(): {} for member {}. Should be between 1 and {}",
+           result,
+           member_id.value(),
+           recovery_threshold));
       }
 
-      return result;
+      share_assignment.assigned_by_callback = true;
+      share_assignment.num_shares = result;
+      return share_assignment;
     }
 
   public:
@@ -730,7 +727,7 @@ namespace ccf
         encrypt_submitted_share(
           submitted_recovery_share, ledger_secrets->get_latest(tx).second));
 
-      return total_submitted_shares(tx);
+      return encrypted_submitted_shares->size();
     }
 
     size_t submit_multiple_recovery_shares(
@@ -756,7 +753,13 @@ namespace ccf
 
       encrypted_submitted_multiple_shares->put(member_id, encrypted_shares);
 
-      return total_submitted_shares(tx);
+      size_t total_submitted_shares = 0; 
+      encrypted_submitted_multiple_shares->foreach([&total_submitted_shares](auto key, auto value) {
+          total_submitted_shares += value.size();
+          return true;
+      });      
+
+      return total_submitted_shares;
     }
 
     static void clear_submitted_recovery_shares(ccf::kv::Tx& tx)

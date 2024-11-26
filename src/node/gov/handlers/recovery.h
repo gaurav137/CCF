@@ -416,7 +416,7 @@ namespace ccf::gov::endpoints
     };
     registry
       .make_endpoint(
-        "/recovery/members/{memberId}:recover",
+        "/recovery/multiple-encrypted-shares/members/{memberId}:recover",
         HTTP_POST,
         api_version_adapter(submit_recovery_share),
         detail::active_member_sig_only_policies("recovery_share"))
