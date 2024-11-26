@@ -426,7 +426,6 @@ namespace ccf
       encrypted_submitted_multiple_shares->foreach(
         [&new_shares, &old_shares, &tx, this](
           const MemberId m, const std::vector<EncryptedSubmittedShare>& encrypted_shares) {
-          LOG_INFO_FMT("Decrypting {} shares for member m[{}]", encrypted_shares.size(), m.value());
           for (auto &encrypted_share : encrypted_shares)
           {
             auto decrypted_share = decrypt_submitted_share(
