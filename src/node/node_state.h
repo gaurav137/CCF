@@ -2193,6 +2193,38 @@ namespace ccf
             return;
           }));
 
+
+      network.tables->set_global_hook(
+        network.encrypted_submitted_multiple_shares.get_name(),
+        network.encrypted_submitted_multiple_shares.wrap_commit_hook(
+          [this](
+            ccf::kv::Version hook_version,
+            const EncryptedSubmittedMultipleShares::Write& w) {
+            // Initiate recovery procedure from global hook, once all recovery
+            // shares have been submitted (i.e. recovered_ledger_secrets is
+            // set)
+            if (!recovered_ledger_secrets.empty())
+            {
+              network.ledger_secrets->restore_historical(
+                std::move(recovered_ledger_secrets));
+
+              LOG_INFO_FMT("Initiating end of recovery (primary)");
+
+              setup_private_recovery_store();
+              reset_recovery_hook();
+
+              // Start reading private security domain of ledger
+              last_recovered_idx = recovery_store->current_version();
+              read_ledger_entries(
+                last_recovered_idx + 1,
+                last_recovered_idx + recovery_batch_size);
+
+              sm.advance(NodeStartupState::readingPrivateLedger);
+            }
+
+            return;
+          }));
+
       network.tables->set_global_hook(
         network.nodes.get_name(),
         network.nodes.wrap_commit_hook(

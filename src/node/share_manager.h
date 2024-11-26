@@ -424,15 +424,45 @@ namespace ccf
         });
 
       encrypted_submitted_multiple_shares->foreach(
-        [&new_shares, &tx, this](
-          const MemberId, const std::vector<EncryptedSubmittedShare> encrypted_shares) {
-            for (auto &encrypted_share : encrypted_shares)
+        [&new_shares, &old_shares, &tx, this](
+          const MemberId m, const std::vector<EncryptedSubmittedShare>& encrypted_shares) {
+          LOG_INFO_FMT("Decrypting {} shares for member m[{}]", encrypted_shares.size(), m.value());
+          for (auto &encrypted_share : encrypted_shares)
+          {
+            auto decrypted_share = decrypt_submitted_share(
+              encrypted_share, ledger_secrets->get_latest(tx).second);
+            switch (decrypted_share.size())
             {
-              auto decrypted_share = decrypt_submitted_share(
-                encrypted_share, ledger_secrets->get_latest(tx).second);
+              case ccf::crypto::sharing::Share::serialised_size:
+              {
                 new_shares.emplace_back(decrypted_share);
-              OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());              
+                break;
+              }
+              case SecretSharing::SHARE_LENGTH:
+              {
+                SecretSharing::Share share;
+                std::copy_n(
+                  decrypted_share.begin(),
+                  SecretSharing::SHARE_LENGTH,
+                  share.begin());
+                old_shares.emplace_back(std::move(share));
+                break;
+              }
+              default:
+              {
+                OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
+                throw std::logic_error(fmt::format(
+                  "Error combining recovery shares: decrypted share of {} bytes "
+                  "is neither a new-style share of {} bytes nor an old-style "
+                  "share of {} bytes",
+                  decrypted_share.size(),
+                  ccf::crypto::sharing::Share::serialised_size,
+                  SecretSharing::SHARE_LENGTH));
+              }
             }
+            
+            OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());              
+          }
           return true;
         });
 

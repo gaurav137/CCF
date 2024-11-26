@@ -328,7 +328,6 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          LOG_INFO_FMT("params: {}", params.dump());
           std::vector<std::vector<uint8_t>> raw_recovery_shares;
           for (const auto& encoded_share : params["shares"])
           {
