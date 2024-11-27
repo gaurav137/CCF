@@ -172,8 +172,6 @@ namespace ccf
     SharesMap compute_encrypted_shares(
       ccf::kv::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
     {
-        LOG_INFO_FMT("Computing encrypted shares");
-
       EncryptedSharesMap encrypted_shares;
       EncryptedMultipleSharesMap encrypted_multiple_shares;
 
