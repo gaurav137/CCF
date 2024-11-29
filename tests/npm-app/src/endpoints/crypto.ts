@@ -224,6 +224,28 @@ export function isValidX509CertBundle(
   return { body: ccfcrypto.isValidX509CertBundle(pem) };
 }
 
+interface GenerateSelfSignedCertRequest {
+  privateKey: string;
+  subjectName: string;
+  validityPeriodDays: number;
+}
+
+interface GenerateSelfSignedCertResponse {
+  cert: string;
+}
+
+export function generateSelfSignedCert(
+  request: ccfapp.Request<GenerateSelfSignedCertRequest>,
+): ccfapp.Response<GenerateSelfSignedCertResponse> {
+  const { privateKey, subjectName, validityPeriodDays } = request.body.json();
+  const pem = ccfcrypto.generateSelfSignedCert(
+    privateKey,
+    subjectName,
+    validityPeriodDays,
+  );
+  return { body: { cert: pem } };
+}
+
 interface IsValidX509CertChainRequest {
   chain: string;
   trusted: string;

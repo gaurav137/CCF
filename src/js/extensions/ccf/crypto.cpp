@@ -3,6 +3,7 @@
 
 #include "ccf/js/extensions/ccf/crypto.h"
 
+#include "ccf/crypto/certs.h"
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
@@ -914,6 +915,66 @@ namespace ccf::js::extensions
       }
     }
 
+    static JSValue js_generate_self_signed_cert(
+      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    {
+      if (argc != 4)
+        return JS_ThrowTypeError(
+          ctx, "Passed %d arguments, but expected 3", argc);
+
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+
+      auto priv_key = jsctx.to_str(argv[0]);
+      if (!priv_key)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      auto pub_key = jsctx.to_str(argv[1]);
+      if (!pub_key)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      auto subject_name = jsctx.to_str(argv[2]);
+      if (!subject_name)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      int32_t validity_period_days;
+      if (JS_ToInt32(ctx, &validity_period_days, argv[3]) < 0)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      try
+      {
+        auto kp = ccf::crypto::make_key_pair(priv_key.value());
+        using namespace std::literals;
+        auto valid_from =
+          ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+        ccf::crypto::Pem cert_pem = ccf::crypto::create_self_signed_cert(
+          kp,
+          subject_name.value(),
+          {},
+          valid_from,
+          validity_period_days);
+ 
+        auto r = jsctx.new_obj();
+        JS_CHECK_EXC(r);
+        auto cert = jsctx.new_string_len((char*)cert_pem.data(), cert_pem.size());
+        JS_CHECK_EXC(cert);
+        JS_CHECK_SET(r.set("cert", std::move(cert)));
+        return r.take();
+     }
+      catch (const std::exception& exc)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to generate self signed cert: %s", exc.what());
+      }
+    }
+
     static bool verify_eddsa_signature(
       uint8_t* contents,
       size_t contents_size,
@@ -1222,6 +1283,11 @@ namespace ccf::js::extensions
       "isValidX509CertChain",
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "generateSelfSignedCert",
+      JS_NewCFunction(ctx, js_generate_self_signed_cert, "generateSelfSignedCert", 4));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("crypto", std::move(crypto));
