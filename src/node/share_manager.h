@@ -490,7 +490,7 @@ namespace ccf
       {
         // TODO (gsinha): Handle absense of the method in a better way rather than
         // blanket catch statement above.
-        LOG_FAIL_FMT("Exception locating the num_shares_to_assign func: {}", e.what());
+        // LOG_FAIL_FMT("Exception locating the num_shares_to_assign func: {}", e.what());
         return share_assignment;
       }      
 

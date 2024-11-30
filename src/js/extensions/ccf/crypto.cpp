@@ -966,6 +966,7 @@ namespace ccf::js::extensions
         auto cert = jsctx.new_string_len((char*)cert_pem.data(), cert_pem.size());
         JS_CHECK_EXC(cert);
         JS_CHECK_SET(r.set("cert", std::move(cert)));
+
         return r.take();
      }
       catch (const std::exception& exc)
