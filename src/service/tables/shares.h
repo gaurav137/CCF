@@ -28,7 +28,7 @@ namespace ccf
       std::nullopt;
 
     // Recovery shares encrypted with each active recovery member's public
-    // encryption key. Each member is assigned multiple shares.
+    // encryption key. Each member can be assigned multiple shares.
     std::optional<EncryptedMultipleSharesMap> encrypted_multiple_shares = std::nullopt;
   };
 
