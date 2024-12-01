@@ -33,11 +33,12 @@ namespace ccf
       }
       else
       {
-        LOG_FAIL_FMT(
-          "Host attempting to move enclave time backwards! Last value was {}, "
-          "now {}",
-          last.count(),
-          current_time);
+        // TODO (gsinha): Suppressing to reduce noise during development using virtual mode in WSL environment.
+        // LOG_FAIL_FMT(
+        //   "Host attempting to move enclave time backwards! Last value was {}, "
+        //   "now {}",
+        //   last.count(),
+        //   current_time);
       }
     }
 

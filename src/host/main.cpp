@@ -180,10 +180,12 @@ int main(int argc, char** argv)
     ccf::logger::config::add_text_console_logger();
   }
 
+  LOG_INFO_FMT("Built locally");
+
   LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
 
   LOG_INFO_FMT("CLI args: \"{}\"", fmt::join(argv, argv + argc, "\" \""));
-
+  
   if (check_config_only)
   {
     LOG_INFO_FMT("Configuration file successfully verified");
