@@ -38,6 +38,18 @@ namespace ccf::crypto
     const std::string& subject_name,
     const std::vector<SubjectAltName>& subject_alt_names,
     const std::string& valid_from,
+    const std::string& valid_to,
+    const bool ca)
+  {
+    return key_pair->self_sign(
+      subject_name, valid_from, valid_to, subject_alt_names, ca);
+  }
+
+  static Pem create_self_signed_cert(
+    const KeyPairPtr& key_pair,
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::string& valid_from,
     size_t validity_period_days)
   {
     return create_self_signed_cert(
@@ -46,6 +58,23 @@ namespace ccf::crypto
       subject_alt_names,
       valid_from,
       compute_cert_valid_to_string(valid_from, validity_period_days));
+  }
+
+  static Pem create_self_signed_cert(
+    const KeyPairPtr& key_pair,
+    const std::string& subject_name,
+    const std::vector<SubjectAltName>& subject_alt_names,
+    const std::string& valid_from,
+    size_t validity_period_days,
+    bool ca)
+  {
+    return create_self_signed_cert(
+      key_pair,
+      subject_name,
+      subject_alt_names,
+      valid_from,
+      compute_cert_valid_to_string(valid_from, validity_period_days),
+      ca);
   }
 
   static Pem create_endorsed_cert(

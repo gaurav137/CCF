@@ -112,11 +112,13 @@ describe("polyfill", function () {
   });
   describe("generateSelfSignedCertificate", function () {
     it("generates a self signed certificate using the supplied private key", function () {
+      // TODO (gsinha): node-forge package does not support ECC so this test uses RSA.
       const pair = ccf.crypto.generateRsaKeyPair(2048);
       const certpem = ccf.crypto.generateSelfSignedCert(
         pair.privateKey,
         pair.publicKey,
-        "foo",
+        "CN=foo",
+        ["dNSName:foobar.com"],
         1,
       );
       assert.isTrue(certpem.startsWith("-----BEGIN CERTIFICATE-----"));

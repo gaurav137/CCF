@@ -918,9 +918,9 @@ namespace ccf::js::extensions
     static JSValue js_generate_self_signed_cert(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      if (argc != 4)
+      if (argc != 6)
         return JS_ThrowTypeError(
-          ctx, "Passed %d arguments, but expected 3", argc);
+          ctx, "Passed %d arguments, but expected 6", argc);
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
@@ -942,24 +942,41 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
+      std::vector<std::string> subject_alt_names;
+      JSValue r = jsctx.extract_string_array(argv[3], subject_alt_names);
+      if (!JS_IsUndefined(r))
+      {
+        return r;
+      }
+      auto sans = ccf::crypto::sans_from_string_list(subject_alt_names);
+
       int32_t validity_period_days;
-      if (JS_ToInt32(ctx, &validity_period_days, argv[3]) < 0)
+      if (JS_ToInt32(ctx, &validity_period_days, argv[4]) < 0)
       {
         return ccf::js::core::constants::Exception;
       }
 
+      const auto v = argv[5];
+      if (!JS_IsBool(v))
+      {
+        return JS_ThrowTypeError(ctx, "6th argument must be a boolean");
+      }
+      auto ca = JS_ToBool(ctx, v);
+
       try
       {
         auto kp = ccf::crypto::make_key_pair(priv_key.value());
+        OPENSSL_cleanse(priv_key.value().data(), priv_key.value().size());
         using namespace std::literals;
         auto valid_from =
           ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
         ccf::crypto::Pem cert_pem = ccf::crypto::create_self_signed_cert(
           kp,
           subject_name.value(),
-          {},
+          sans,
           valid_from,
-          validity_period_days);
+          validity_period_days,
+          ca);
  
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
@@ -974,6 +991,92 @@ namespace ccf::js::extensions
         return JS_ThrowInternalError(
           ctx, "Failed to generate self signed cert: %s", exc.what());
       }
+    }
+
+    static JSValue js_generate_endorsed_cert(
+      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+    {
+      if (argc != 7)
+        return JS_ThrowTypeError(
+          ctx, "Passed %d arguments, but expected 7", argc);
+
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+
+      auto public_key = jsctx.to_str(argv[0]);
+      if (!public_key)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      auto subject_name = jsctx.to_str(argv[1]);
+      if (!subject_name)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      std::vector<std::string> subject_alt_names;
+      JSValue r = jsctx.extract_string_array(argv[2], subject_alt_names);
+      if (!JS_IsUndefined(r))
+      {
+        return r;
+      }
+      auto sans = ccf::crypto::sans_from_string_list(subject_alt_names);
+
+      int32_t validity_period_days;
+      if (JS_ToInt32(ctx, &validity_period_days, argv[3]) < 0)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      auto issuer_private_key = jsctx.to_str(argv[4]);
+      if (!issuer_private_key)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      auto issuer_cert = jsctx.to_str(argv[5]);
+      if (!issuer_cert)
+      {
+        return ccf::js::core::constants::Exception;
+      }
+
+      const auto v = argv[6];
+      if (!JS_IsBool(v))
+      {
+        return JS_ThrowTypeError(ctx, "7th argument must be a boolean");
+      }
+      auto ca = JS_ToBool(ctx, v);
+
+      try
+      {
+        using namespace std::literals;
+        auto valid_from =
+          ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+        auto valid_to = ccf::crypto::compute_cert_valid_to_string(valid_from, validity_period_days);
+
+        ccf::crypto::Pem cert_pem = ccf::crypto::create_endorsed_cert(
+          public_key.value(),
+          subject_name.value(),
+          sans,
+          valid_from,
+          valid_to,
+          issuer_private_key.value(),
+          issuer_cert.value(),
+          ca);        
+
+        auto r = jsctx.new_obj();
+        JS_CHECK_EXC(r);
+        auto cert = jsctx.new_string_len((char*)cert_pem.data(), cert_pem.size());
+        JS_CHECK_EXC(cert);
+        JS_CHECK_SET(r.set("cert", std::move(cert)));
+
+        return r.take();
+      }
+      catch(const std::exception& exc)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to generate endorsed cert: %s", exc.what());
+      }      
     }
 
     static bool verify_eddsa_signature(
@@ -1288,7 +1391,12 @@ namespace ccf::js::extensions
       ctx,
       crypto,
       "generateSelfSignedCert",
-      JS_NewCFunction(ctx, js_generate_self_signed_cert, "generateSelfSignedCert", 4));
+      JS_NewCFunction(ctx, js_generate_self_signed_cert, "generateSelfSignedCert", 6));
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "generateEndorsedCert",
+      JS_NewCFunction(ctx, js_generate_endorsed_cert, "generateEndorsedCert", 7));
 
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("crypto", std::move(crypto));

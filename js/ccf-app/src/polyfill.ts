@@ -564,6 +564,7 @@ class CCFPolyfill implements CCF {
       privateKey: string,
       publicKey: string,
       subjectName: string,
+      subjectAlternateNames: string[],
       validityPeriodDays: number,
     ): string {
       // generate a keypair or use one you have already
@@ -619,6 +620,16 @@ class CCFPolyfill implements CCF {
       // now convert the Forge certificate to PEM format
       var pem = forge.pki.certificateToPem(cert);
       return pem;
+    },
+    generateEndorsedCert(
+      publicKey: string,
+      subjectName: string,
+      subjectAlternateNames: string[],
+      validityPeriodDays: number,
+      issuerPrivateKey: string,
+      issuerCert: string,
+    ): string {
+      return "";
     },
   };
 
