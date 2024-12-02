@@ -110,6 +110,18 @@ describe("polyfill", function () {
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
+  describe("generateSelfSignedCertificate", function () {
+    it("generates a self signed certificate using the supplied private key", function () {
+      const pair = ccf.crypto.generateRsaKeyPair(2048);
+      const certpem = ccf.crypto.generateSelfSignedCert(
+        pair.privateKey,
+        pair.publicKey,
+        "foo",
+        1,
+      );
+      assert.isTrue(certpem.startsWith("-----BEGIN CERTIFICATE-----"));
+    });
+  });
   describe("wrapKey", function () {
     it("performs RSA-OAEP wrapping correctly", function () {
       const key = ccf.crypto.generateAesKey(128);

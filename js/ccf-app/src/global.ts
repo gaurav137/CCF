@@ -534,6 +534,21 @@ export interface CCFCrypto {
    * @param jwk EdDSA private key as JWK
    */
   eddsaJwkToPem(jwk: JsonWebKeyEdDSAPrivate): string;
+
+  /**
+   * Generates a self signed certificate.
+   *
+   * @param privateKey A PEM-encoded private key
+   * @param publicKey A PEM-encoded public key
+   * @param subjectName The subject name to set in the cert
+   * @param validityPeriodDays The validity (expiry) to set for the cert
+   */
+  generateSelfSignedCert(
+    privateKey: string,
+    publicKey: string,
+    subjectName: string,
+    validityPeriodDays: number,
+  ): string;
 }
 
 export interface CCFRpc {
