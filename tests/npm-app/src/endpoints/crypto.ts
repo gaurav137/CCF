@@ -231,6 +231,7 @@ interface GenerateSelfSignedCertRequest {
   subjectAlternateNames: string[];
   validityPeriodDays: number;
   ca: boolean;
+  caPathLenConstraint?: number;
 }
 
 export function generateSelfSignedCert(
@@ -243,6 +244,7 @@ export function generateSelfSignedCert(
     subjectAlternateNames,
     validityPeriodDays,
     ca,
+    caPathLenConstraint,
   } = request.body.json();
   const result = ccfcrypto.generateSelfSignedCert(
     privateKey,
@@ -251,6 +253,7 @@ export function generateSelfSignedCert(
     subjectAlternateNames,
     validityPeriodDays,
     ca,
+    caPathLenConstraint,
   );
 
   return { body: result };
@@ -265,6 +268,7 @@ interface GenerateEndorsedCertRequest {
   issuerPrivateKey: string;
   issuerCert: string;
   ca: boolean;
+  caPathLenConstraint?: number;
 }
 
 export function generateEndorsedCert(
@@ -278,6 +282,7 @@ export function generateEndorsedCert(
     issuerPrivateKey,
     issuerCert,
     ca,
+    caPathLenConstraint,
   } = request.body.json();
   const result = ccfcrypto.generateEndorsedCert(
     publicKey,
@@ -287,6 +292,7 @@ export function generateEndorsedCert(
     issuerPrivateKey,
     issuerCert,
     ca,
+    caPathLenConstraint,
   );
 
   return { body: result };

@@ -918,9 +918,9 @@ namespace ccf::js::extensions
     static JSValue js_generate_self_signed_cert(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      if (argc != 6)
+      if (argc != 6 && argc != 7)
         return JS_ThrowTypeError(
-          ctx, "Passed %d arguments, but expected 6", argc);
+          ctx, "Passed %d arguments, but expected 6 or 7", argc);
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
@@ -964,6 +964,17 @@ namespace ccf::js::extensions
       }
       auto ca = JS_ToBool(ctx, v);
 
+      std::optional<int> ca_path_len_constraint;
+      if (argc == 7)
+      {
+        int32_t value;
+        if (JS_ToInt32(ctx, &value, argv[6]) < 0)
+        {
+          return ccf::js::core::constants::Exception;
+        }
+        ca_path_len_constraint = value;
+      }
+
       try
       {
         auto kp = ccf::crypto::make_key_pair(priv_key.value());
@@ -979,7 +990,8 @@ namespace ccf::js::extensions
           sans,
           valid_from,
           validity_period_days + 1,
-          ca);
+          ca,
+          ca_path_len_constraint);
  
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
@@ -999,9 +1011,9 @@ namespace ccf::js::extensions
     static JSValue js_generate_endorsed_cert(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      if (argc != 7)
+      if (argc != 7 && argc != 8)
         return JS_ThrowTypeError(
-          ctx, "Passed %d arguments, but expected 7", argc);
+          ctx, "Passed %d arguments, but expected 7 or 8", argc);
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
@@ -1051,6 +1063,16 @@ namespace ccf::js::extensions
       }
       auto ca = JS_ToBool(ctx, v);
 
+      std::optional<int> ca_path_len_constraint;
+      if (argc == 8)
+      {
+        int32_t value;
+        if (JS_ToInt32(ctx, &value, argv[7]) < 0)
+        {
+          return ccf::js::core::constants::Exception;
+        }
+        ca_path_len_constraint = value;
+      }
       try
       {
         using namespace std::literals;
@@ -1068,7 +1090,8 @@ namespace ccf::js::extensions
           valid_to,
           issuer_private_key.value(),
           issuer_cert.value(),
-          ca);        
+          ca,
+          ca_path_len_constraint);        
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);

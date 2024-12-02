@@ -544,6 +544,7 @@ export interface CCFCrypto {
    * @param subjectAlternateNames Any subject alternate names for the cert
    * @param validityPeriodDays The validity (expiry) to set for the cert
    * @param ca Whether generating a CA cert or not
+   * @param caPathLenConstraint Optional path length constraing value to set when generating a CA cert. Defaults to 1.
    */
   generateSelfSignedCert(
     privateKey: string,
@@ -552,6 +553,7 @@ export interface CCFCrypto {
     subjectAlternateNames: string[],
     validityPeriodDays: number,
     ca: boolean,
+    caPathLenConstraint?: number,
   ): string;
 
   /**
@@ -564,6 +566,7 @@ export interface CCFCrypto {
    * @param issuerPrivateKey The PEM-encoded issuer private key
    * @param issuerCert The PEM-encoded issuer cert
    * @param ca Whether generating a CA cert or not
+   * @param caPathLenConstraint Optional path length constraing value to set when generating a CA cert. Defaults to 1.
    */
   generateEndorsedCert(
     publicKey: string,
@@ -573,6 +576,7 @@ export interface CCFCrypto {
     issuerPrivateKey: string,
     issuerCert: string,
     ca: boolean,
+    caPathLenConstraint?: number,
   ): string;
 }
 
