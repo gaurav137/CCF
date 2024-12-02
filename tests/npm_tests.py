@@ -347,7 +347,6 @@ def test_npm_app(network, args):
             "/app/generateSelfSignedCert",
             {
                 "privateKey": ca_privk,
-                "publicKey": ca_pubk,
                 "subjectName": "CN=ca",
                 "subjectAlternateNames": ["dNSName:ca.bar.com"],
                 "validityPeriodDays": validatity_period_days,
@@ -389,7 +388,7 @@ def test_npm_app(network, args):
             {
                 "publicKey": child_pubk,
                 "subjectName": "CN=foo",
-                "subjectAlternateNames": ["dNSName:foo.bar.com", "iPAddress:127.0.0.1"],
+                "subjectAlternateNames": ["dNSName:*.bar.com"],
                 "validityPeriodDays": 2,
                 "issuerPrivateKey": ca_privk,
                 "issuerCert": ca_cert_pem,

@@ -239,7 +239,6 @@ export function generateSelfSignedCert(
 ): ccfapp.Response {
   const {
     privateKey,
-    publicKey,
     subjectName,
     subjectAlternateNames,
     validityPeriodDays,
@@ -248,7 +247,6 @@ export function generateSelfSignedCert(
   } = request.body.json();
   const result = ccfcrypto.generateSelfSignedCert(
     privateKey,
-    publicKey,
     subjectName,
     subjectAlternateNames,
     validityPeriodDays,

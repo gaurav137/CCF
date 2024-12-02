@@ -539,7 +539,6 @@ export interface CCFCrypto {
    * Generates a self signed certificate.
    *
    * @param privateKey A PEM-encoded private key
-   * @param publicKey A PEM-encoded public key
    * @param subjectName The subject name to set in the cert
    * @param subjectAlternateNames Any subject alternate names for the cert
    * @param validityPeriodDays The validity (expiry) to set for the cert
@@ -548,7 +547,6 @@ export interface CCFCrypto {
    */
   generateSelfSignedCert(
     privateKey: string,
-    publicKey: string,
     subjectName: string,
     subjectAlternateNames: string[],
     validityPeriodDays: number,

@@ -572,9 +572,6 @@
                     "privateKey": {
                       "type": "string"
                     },
-                    "publicKey": {
-                      "type": "string"
-                    },
                     "subjectName": {
                       "type": "string"
                     },

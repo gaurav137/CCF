@@ -562,7 +562,6 @@ class CCFPolyfill implements CCF {
     },
     generateSelfSignedCert(
       privateKey: string,
-      publicKey: string,
       subjectName: string,
       subjectAlternateNames: string[],
       validityPeriodDays: number,

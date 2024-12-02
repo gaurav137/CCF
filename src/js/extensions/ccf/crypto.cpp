@@ -918,9 +918,9 @@ namespace ccf::js::extensions
     static JSValue js_generate_self_signed_cert(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
-      if (argc != 6 && argc != 7)
+      if (argc != 5 && argc != 6)
         return JS_ThrowTypeError(
-          ctx, "Passed %d arguments, but expected 6 or 7", argc);
+          ctx, "Passed %d arguments, but expected 5 or 6", argc);
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
@@ -930,45 +930,39 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      auto pub_key = jsctx.to_str(argv[1]);
-      if (!pub_key)
-      {
-        return ccf::js::core::constants::Exception;
-      }
-
-      auto subject_name = jsctx.to_str(argv[2]);
+      auto subject_name = jsctx.to_str(argv[1]);
       if (!subject_name)
       {
         return ccf::js::core::constants::Exception;
       }
 
       std::vector<std::string> subject_alt_names;
-      JSValue rv = jsctx.extract_string_array(argv[3], subject_alt_names);
+      JSValue rv = jsctx.extract_string_array(argv[2], subject_alt_names);
       if (!JS_IsUndefined(rv))
       {
-        return JS_ThrowTypeError(ctx, "4th argument must be a string array");
+        return JS_ThrowTypeError(ctx, "3rd argument must be a string array");
       }
 
       auto sans = ccf::crypto::sans_from_string_list(subject_alt_names);
 
       int32_t validity_period_days;
-      if (JS_ToInt32(ctx, &validity_period_days, argv[4]) < 0)
+      if (JS_ToInt32(ctx, &validity_period_days, argv[3]) < 0)
       {
         return ccf::js::core::constants::Exception;
       }
 
-      const auto v = argv[5];
+      const auto v = argv[4];
       if (!JS_IsBool(v))
       {
-        return JS_ThrowTypeError(ctx, "6th argument must be a boolean");
+        return JS_ThrowTypeError(ctx, "5th argument must be a boolean");
       }
       auto ca = JS_ToBool(ctx, v);
 
       std::optional<int> ca_path_len_constraint;
-      if (argc == 7)
+      if (argc == 6)
       {
         int32_t value;
-        if (JS_ToInt32(ctx, &value, argv[6]) < 0)
+        if (JS_ToInt32(ctx, &value, argv[5]) < 0)
         {
           return ccf::js::core::constants::Exception;
         }
@@ -1420,7 +1414,7 @@ namespace ccf::js::extensions
       ctx,
       crypto,
       "generateSelfSignedCert",
-      JS_NewCFunction(ctx, js_generate_self_signed_cert, "generateSelfSignedCert", 6));
+      JS_NewCFunction(ctx, js_generate_self_signed_cert, "generateSelfSignedCert", 5));
     JS_SetPropertyStr(
       ctx,
       crypto,
