@@ -17,14 +17,10 @@ namespace ccf
   using EncryptedSubmittedShare = std::vector<uint8_t>;
   using EncryptedSubmittedShares =
     ServiceMap<MemberId, EncryptedSubmittedShare>;
-  using EncryptedSubmittedMultipleShares =
-    ServiceMap<MemberId, std::vector<EncryptedSubmittedShare>>;
 
   namespace Tables
   {
     static constexpr auto ENCRYPTED_SUBMITTED_SHARES =
       "public:ccf.internal.encrypted_submitted_shares";
-    static constexpr auto ENCRYPTED_SUBMITTED_MULTIPLE_SHARES =
-      "public:ccf.internal.encrypted_submitted_multiple_shares";
   }
 }

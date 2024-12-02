@@ -12,7 +12,6 @@ namespace ccf
 {
   using EncryptedShare = std::vector<uint8_t>;
   using EncryptedSharesMap = std::map<MemberId, EncryptedShare>;
-  using EncryptedMultipleSharesMap = std::map<MemberId, std::vector<EncryptedShare>>;
 
   struct RecoverySharesInfo
   {
@@ -20,23 +19,19 @@ namespace ccf
     std::vector<uint8_t> wrapped_latest_ledger_secret;
 
     // Recovery shares encrypted with each active recovery member's public
-    // encryption key. Each member is assigned one share.
+    // encryption key
     EncryptedSharesMap encrypted_shares;
 
     // Version at which the previous ledger secret was written to the store
     std::optional<ccf::kv::Version> previous_secret_stored_version =
       std::nullopt;
-
-    // Recovery shares encrypted with each active recovery member's public
-    // encryption key. Each member is assigned multiple shares.
-    std::optional<EncryptedMultipleSharesMap> encrypted_multiple_shares = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoverySharesInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
     RecoverySharesInfo, wrapped_latest_ledger_secret, encrypted_shares)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    RecoverySharesInfo, previous_secret_stored_version, encrypted_multiple_shares)
+    RecoverySharesInfo, previous_secret_stored_version)
 
   struct PreviousLedgerSecretInfo
   {
