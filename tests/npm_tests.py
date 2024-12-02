@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 #
 from base64 import b64encode
+from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -329,25 +330,76 @@ def test_npm_app(network, args):
         private_key = load_pem_private_key(r.body.json()["privateKey"].encode(), None)
         assert isinstance(private_key, X25519PrivateKey)
 
-        # Test self signed cert generation
+        # Test self signed CA cert and endorsed cert generation
         r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert infra.crypto.check_key_pair_pem(
             r.body.json()["privateKey"], r.body.json()["publicKey"]
         )
-        privk = r.body.json()["privateKey"]
-        pubk = r.body.json()["publicKey"]
+        root_privk = r.body.json()["privateKey"]
+        root_pubk = r.body.json()["publicKey"]
+        from datetime import datetime, timedelta, timezone
+
+        utc_now = datetime.now(timezone.utc)
+        validatity_period_days = 2
         r = c.post(
             "/app/generateSelfSignedCert",
             {
-                "privateKey": privk,
-                "publicKey": pubk,
-                "subjectName": "CN=foo",
-                "validityPeriodDays": 2,
+                "privateKey": root_privk,
+                "publicKey": root_pubk,
+                "subjectName": "CN=ca",
+                "subjectAlternateNames": ["dNSName:ca.bar.com"],
+                "validityPeriodDays": validatity_period_days,
+                "ca": True,
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json()["cert"].startswith("-----BEGIN CERTIFICATE-----")
+        root_cert_pem = r.body.json()["cert"]
+        assert root_cert_pem.startswith("-----BEGIN CERTIFICATE-----")
+        root_cert = x509.load_pem_x509_certificate(str.encode(root_cert_pem))
+        assert (
+            root_cert.not_valid_before_utc < utc_now
+        ), f"not_valid_before_utc: {root_cert.not_valid_before_utc}, utc_now: {utc_now}"
+        atleast_after_utc = (
+            utc_now + timedelta(days=validatity_period_days) - timedelta(seconds=2)
+        )
+        assert (
+            root_cert.not_valid_after_utc >= atleast_after_utc
+        ), f"not_valid_after_utc: {root_cert.not_valid_after_utc}, atleast_after_utc: {atleast_after_utc}"
+
+        # Generate the child key pair and certificate endorsed by the above issuer certificate.
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
+        child_pubk = r.body.json()["publicKey"]
+
+        r = c.post(
+            "/app/generateEndorsedCert",
+            {
+                "publicKey": child_pubk,
+                "subjectName": "CN=foo",
+                "subjectAlternateNames": ["dNSName:foo.bar.com"],
+                "validityPeriodDays": 2,
+                "issuerPrivateKey": root_privk,
+                "issuerCert": root_cert_pem,
+                "ca": False,
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        child_cert_pem = r.body.json()["cert"]
+        assert child_cert_pem.startswith("-----BEGIN CERTIFICATE-----")
+        child_cert = x509.load_pem_x509_certificate(str.encode(child_cert_pem))
+        assert (
+            child_cert.not_valid_before_utc < utc_now
+        ), f"not_valid_before_utc: {child_cert.not_valid_before_utc}, utc_now: {utc_now}"
+        atleast_after_utc = (
+            utc_now + timedelta(days=validatity_period_days) - timedelta(seconds=2)
+        )
+        assert (
+            child_cert.not_valid_after_utc >= atleast_after_utc
+        ), f"not_valid_after_utc: {child_cert.not_valid_after_utc}, atleast_after_utc: {atleast_after_utc}"
 
         aes_key_to_wrap = infra.crypto.generate_aes_key(256)
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(

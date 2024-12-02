@@ -578,8 +578,87 @@
                     "subjectName": {
                       "type": "string"
                     },
+                    "subjectAlternateNames": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "validityPeriodDays": {
                       "type": "number"
+                    },
+                    "ca": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Generated certificate",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "cert": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "cert"
+                    ],
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/generateEndorsedCert": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "generateEndorsedCert",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
+        "authn_policies": [
+          "user_cert"
+        ],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "publicKey": {
+                      "type": "string"
+                    },
+                    "subjectName": {
+                      "type": "string"
+                    },
+                    "subjectAlternateNames": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "validityPeriodDays": {
+                      "type": "number"
+                    },
+                    "issuerPrivateKey": {
+                      "type": "string"
+                    },
+                    "issuerCert": {
+                      "type": "string"
+                    },
+                    "ca": {
+                      "type": "boolean"
                     }
                   },
                   "type": "object"

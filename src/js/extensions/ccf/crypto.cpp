@@ -943,11 +943,12 @@ namespace ccf::js::extensions
       }
 
       std::vector<std::string> subject_alt_names;
-      JSValue r = jsctx.extract_string_array(argv[3], subject_alt_names);
-      if (!JS_IsUndefined(r))
+      JSValue rv = jsctx.extract_string_array(argv[3], subject_alt_names);
+      if (!JS_IsUndefined(rv))
       {
-        return r;
+        return JS_ThrowTypeError(ctx, "4th argument must be a string array");
       }
+
       auto sans = ccf::crypto::sans_from_string_list(subject_alt_names);
 
       int32_t validity_period_days;
@@ -968,6 +969,8 @@ namespace ccf::js::extensions
         auto kp = ccf::crypto::make_key_pair(priv_key.value());
         OPENSSL_cleanse(priv_key.value().data(), priv_key.value().size());
         using namespace std::literals;
+        // valid_from starts a day before the current time so validity period is adjusted accordingly by
+        // increasing the input validity_period_days by 1.
         auto valid_from =
           ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
         ccf::crypto::Pem cert_pem = ccf::crypto::create_self_signed_cert(
@@ -975,7 +978,7 @@ namespace ccf::js::extensions
           subject_name.value(),
           sans,
           valid_from,
-          validity_period_days,
+          validity_period_days + 1,
           ca);
  
         auto r = jsctx.new_obj();
@@ -1015,11 +1018,12 @@ namespace ccf::js::extensions
       }
 
       std::vector<std::string> subject_alt_names;
-      JSValue r = jsctx.extract_string_array(argv[2], subject_alt_names);
-      if (!JS_IsUndefined(r))
+      JSValue rv = jsctx.extract_string_array(argv[2], subject_alt_names);
+      if (!JS_IsUndefined(rv))
       {
-        return r;
+        return JS_ThrowTypeError(ctx, "3rd argument must be a string array");
       }
+
       auto sans = ccf::crypto::sans_from_string_list(subject_alt_names);
 
       int32_t validity_period_days;
@@ -1050,9 +1054,11 @@ namespace ccf::js::extensions
       try
       {
         using namespace std::literals;
+        // valid_from starts a day before the current time so validity period is adjusted accordingly by
+        // increasing the input validity_period_days by 1.
         auto valid_from =
           ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-        auto valid_to = ccf::crypto::compute_cert_valid_to_string(valid_from, validity_period_days);
+        auto valid_to = ccf::crypto::compute_cert_valid_to_string(valid_from, validity_period_days + 1);
 
         ccf::crypto::Pem cert_pem = ccf::crypto::create_endorsed_cert(
           public_key.value(),

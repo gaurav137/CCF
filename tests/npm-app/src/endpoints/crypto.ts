@@ -228,19 +228,65 @@ interface GenerateSelfSignedCertRequest {
   privateKey: string;
   publicKey: string;
   subjectName: string;
+  subjectAlternateNames: string[];
   validityPeriodDays: number;
+  ca: boolean;
 }
 
 export function generateSelfSignedCert(
   request: ccfapp.Request<GenerateSelfSignedCertRequest>,
 ): ccfapp.Response {
-  const { privateKey, publicKey, subjectName, validityPeriodDays } =
-    request.body.json();
+  const {
+    privateKey,
+    publicKey,
+    subjectName,
+    subjectAlternateNames,
+    validityPeriodDays,
+    ca,
+  } = request.body.json();
   const result = ccfcrypto.generateSelfSignedCert(
     privateKey,
     publicKey,
     subjectName,
+    subjectAlternateNames,
     validityPeriodDays,
+    ca,
+  );
+
+  return { body: result };
+}
+
+interface GenerateEndorsedCertRequest {
+  privateKey: string;
+  publicKey: string;
+  subjectName: string;
+  subjectAlternateNames: string[];
+  validityPeriodDays: number;
+  issuerPrivateKey: string;
+  issuerCert: string;
+  ca: boolean;
+}
+
+export function generateEndorsedCert(
+  request: ccfapp.Request<GenerateEndorsedCertRequest>,
+): ccfapp.Response {
+  const {
+    publicKey,
+    subjectName,
+    subjectAlternateNames,
+    validityPeriodDays,
+    issuerPrivateKey,
+    issuerCert,
+    ca,
+  } = request.body.json();
+  const result = ccfcrypto.generateEndorsedCert(
+    publicKey,
+    subjectName,
+    subjectAlternateNames,
+    validityPeriodDays,
+    issuerPrivateKey,
+    issuerCert,
+    ca,
   );
 
   return { body: result };

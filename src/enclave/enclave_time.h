@@ -33,11 +33,11 @@ namespace ccf
       }
       else
       {
-        LOG_FAIL_FMT(
-          "Host attempting to move enclave time backwards! Last value was {}, "
-          "now {}",
-          last.count(),
-          current_time);
+        // LOG_FAIL_FMT(
+        //   "Host attempting to move enclave time backwards! Last value was {}, "
+        //   "now {}",
+        //   last.count(),
+        //   current_time);
       }
     }
 

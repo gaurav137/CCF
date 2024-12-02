@@ -210,4 +210,5 @@ namespace ccf::gov::endpoints
         detail::active_member_sig_only_policies("recovery_share"))
       .set_openapi_hidden(true)
       .install();
+  }
 }
