@@ -937,7 +937,8 @@ namespace ccf::js::extensions
       }
 
       std::vector<std::string> subject_alt_names;
-      JSValue rv = jsctx.extract_string_array(argv[2], subject_alt_names);
+      bool allow_empty = true;
+      JSValue rv = jsctx.extract_string_array(argv[2], subject_alt_names, allow_empty);
       if (!JS_IsUndefined(rv))
       {
         return JS_ThrowTypeError(ctx, "3rd argument must be a string array");
@@ -1024,7 +1025,8 @@ namespace ccf::js::extensions
       }
 
       std::vector<std::string> subject_alt_names;
-      JSValue rv = jsctx.extract_string_array(argv[2], subject_alt_names);
+      bool allow_empty = true;
+      JSValue rv = jsctx.extract_string_array(argv[2], subject_alt_names, allow_empty);
       if (!JS_IsUndefined(rv))
       {
         return JS_ThrowTypeError(ctx, "3rd argument must be a string array");
@@ -1414,7 +1416,7 @@ namespace ccf::js::extensions
       ctx,
       crypto,
       "generateSelfSignedCert",
-      JS_NewCFunction(ctx, js_generate_self_signed_cert, "generateSelfSignedCert", 5));
+      JS_NewCFunction(ctx, js_generate_self_signed_cert, "generateSelfSignedCert", 6));
     JS_SetPropertyStr(
       ctx,
       crypto,

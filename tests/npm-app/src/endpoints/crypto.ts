@@ -228,7 +228,7 @@ interface GenerateSelfSignedCertRequest {
   privateKey: string;
   publicKey: string;
   subjectName: string;
-  subjectAlternateNames: string[];
+  subjectAlternateNames?: string[];
   validityPeriodDays: number;
   ca: boolean;
   caPathLenConstraint?: number;
@@ -237,21 +237,14 @@ interface GenerateSelfSignedCertRequest {
 export function generateSelfSignedCert(
   request: ccfapp.Request<GenerateSelfSignedCertRequest>,
 ): ccfapp.Response {
-  const {
-    privateKey,
-    subjectName,
-    subjectAlternateNames,
-    validityPeriodDays,
-    ca,
-    caPathLenConstraint,
-  } = request.body.json();
+  let input: GenerateSelfSignedCertRequest = request.body.json();
   const result = ccfcrypto.generateSelfSignedCert(
-    privateKey,
-    subjectName,
-    subjectAlternateNames,
-    validityPeriodDays,
-    ca,
-    caPathLenConstraint,
+    input.privateKey,
+    input.subjectName,
+    input.subjectAlternateNames ?? [],
+    input.validityPeriodDays,
+    input.ca,
+    input.caPathLenConstraint ?? 0,
   );
 
   return { body: result };
@@ -261,7 +254,7 @@ interface GenerateEndorsedCertRequest {
   privateKey: string;
   publicKey: string;
   subjectName: string;
-  subjectAlternateNames: string[];
+  subjectAlternateNames?: string[];
   validityPeriodDays: number;
   issuerPrivateKey: string;
   issuerCert: string;
@@ -272,25 +265,16 @@ interface GenerateEndorsedCertRequest {
 export function generateEndorsedCert(
   request: ccfapp.Request<GenerateEndorsedCertRequest>,
 ): ccfapp.Response {
-  const {
-    publicKey,
-    subjectName,
-    subjectAlternateNames,
-    validityPeriodDays,
-    issuerPrivateKey,
-    issuerCert,
-    ca,
-    caPathLenConstraint,
-  } = request.body.json();
+  let input: GenerateEndorsedCertRequest = request.body.json();
   const result = ccfcrypto.generateEndorsedCert(
-    publicKey,
-    subjectName,
-    subjectAlternateNames,
-    validityPeriodDays,
-    issuerPrivateKey,
-    issuerCert,
-    ca,
-    caPathLenConstraint,
+    input.publicKey,
+    input.subjectName,
+    input.subjectAlternateNames ?? [],
+    input.validityPeriodDays,
+    input.issuerPrivateKey,
+    input.issuerCert,
+    input.ca,
+    input.caPathLenConstraint ?? 0,
   );
 
   return { body: result };

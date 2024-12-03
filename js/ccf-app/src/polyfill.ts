@@ -566,6 +566,7 @@ class CCFPolyfill implements CCF {
       subjectAlternateNames: string[],
       validityPeriodDays: number,
       ca: boolean,
+      caPathLenConstraint?: number,
     ): string {
       return "ECC is not supported by node-forge package";
     },

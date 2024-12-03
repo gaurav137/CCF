@@ -543,7 +543,7 @@ export interface CCFCrypto {
    * @param subjectAlternateNames Any subject alternate names for the cert
    * @param validityPeriodDays The validity (expiry) to set for the cert
    * @param ca Whether generating a CA cert or not
-   * @param caPathLenConstraint Optional path length constraing value to set when generating a CA cert. Defaults to 1.
+   * @param caPathLenConstraint Optional path length constraing value to set when generating a CA cert. Defaults to 0.
    */
   generateSelfSignedCert(
     privateKey: string,
