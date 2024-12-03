@@ -39,6 +39,7 @@ import {
   JsonWebKeyRSAPrivate,
   JsonWebKeyEdDSAPublic,
   JsonWebKeyEdDSAPrivate,
+  Certificate,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -567,8 +568,10 @@ class CCFPolyfill implements CCF {
       validityPeriodDays: number,
       ca: boolean,
       caPathLenConstraint?: number,
-    ): string {
-      return "ECC is not supported by node-forge package";
+    ): Certificate {
+      return {
+        cert: "ECC is not supported by node-forge package hence cannot generate cert",
+      };
     },
     generateEndorsedCert(
       publicKey: string,
@@ -578,8 +581,10 @@ class CCFPolyfill implements CCF {
       issuerPrivateKey: string,
       issuerCert: string,
       ca: boolean,
-    ): string {
-      return "ECC is not supported by node-forge package";
+    ): Certificate {
+      return {
+        cert: "ECC is not supported by node-forge package hence cannot generate cert",
+      };
     },
   };
 

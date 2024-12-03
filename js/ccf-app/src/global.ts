@@ -335,6 +335,13 @@ export interface JsonWebKeyEdDSAPrivate extends JsonWebKeyEdDSAPublic {
   d: string;
 }
 
+export interface Certificate {
+  /**
+   * Certificate in PEM encoding.
+   */
+  cert: string;
+}
+
 export interface CCFCrypto {
   /**
    * Generate a signature.
@@ -552,7 +559,7 @@ export interface CCFCrypto {
     validityPeriodDays: number,
     ca: boolean,
     caPathLenConstraint?: number,
-  ): string;
+  ): Certificate;
 
   /**
    * Generates an endorsed certificate.
@@ -575,7 +582,7 @@ export interface CCFCrypto {
     issuerCert: string,
     ca: boolean,
     caPathLenConstraint?: number,
-  ): string;
+  ): Certificate;
 }
 
 export interface CCFRpc {
