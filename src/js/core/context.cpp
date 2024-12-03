@@ -143,7 +143,9 @@ namespace ccf::js::core
   };
 
   JSValue Context::extract_string_array(
-    JSValueConst& argv, std::vector<std::string>& out)
+    JSValueConst& argv,
+    std::vector<std::string>& out,
+    bool allow_empty)
   {
     auto args = wrap(argv);
 
@@ -161,6 +163,11 @@ namespace ccf::js::core
 
     if (len == 0)
     {
+      if (allow_empty)
+      {
+        return ccf::js::core::constants::Undefined;
+      }
+
       return JS_ThrowRangeError(
         ctx, "First argument must be a non-empty array");
     }

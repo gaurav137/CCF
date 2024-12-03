@@ -101,7 +101,7 @@ namespace ccf::js::core
     // If the first argument is a string-array, populates the second, and
     // returns undefined. Otherwise returns a JS error value.
     JSValue extract_string_array(
-      JSValueConst& argv, std::vector<std::string>& out);
+      JSValueConst& argv, std::vector<std::string>& out, bool allow_empty = false);
 
     std::pair<std::string, std::optional<std::string>> error_message();
 

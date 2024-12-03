@@ -3,10 +3,10 @@
 #include "node/history.h"
 
 #include "ccf/app_interface.h"
+#include "ccf/crypto/certs.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
-#include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"

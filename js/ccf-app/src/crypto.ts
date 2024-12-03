@@ -132,6 +132,16 @@ export const pubEddsaJwkToPem = ccf.crypto.pubEddsaJwkToPem;
  */
 export const eddsaJwkToPem = ccf.crypto.eddsaJwkToPem;
 
+/**
+ * @inheritDoc global!CCFCrypto.generateSelfSignedCert
+ */
+export const generateSelfSignedCert = ccf.crypto.generateSelfSignedCert;
+
+/**
+ * @inheritDoc global!CCFCrypto.generateEndorsedCert
+ */
+export const generateEndorsedCert = ccf.crypto.generateEndorsedCert;
+
 export {
   WrapAlgoParams,
   AesKwpParams,
