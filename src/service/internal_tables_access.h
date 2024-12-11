@@ -112,13 +112,44 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE)
+          if (info->status == MemberStatus::ACTIVE &&
+             (!info->recovery_owner.has_value() || !info->recovery_owner.value()))
           {
             active_recovery_members[mid] = pem;
           }
           return true;
         });
       return active_recovery_members;
+    }
+
+    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
+      ccf::kv::ReadOnlyTx& tx)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_encryption_public_keys =
+        tx.ro<ccf::MemberPublicEncryptionKeys>(
+          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_owners;
+
+      member_encryption_public_keys->foreach(
+        [&active_recovery_owners,
+         &member_info](const auto& mid, const auto& pem) {
+          auto info = member_info->get(mid);
+          if (!info.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Recovery member {} has no member info", mid));
+          }
+
+          if (info->status == MemberStatus::ACTIVE && info->recovery_owner.has_value()
+            && info->recovery_owner.value())
+          {
+            active_recovery_owners[mid] = pem;
+          }
+          return true;
+        });
+      return active_recovery_owners;
     }
 
     static MemberId add_member(
@@ -140,9 +171,15 @@ namespace ccf
         return id;
       }
 
+      if (member_pub_info.recovery_owner.has_value() && !member_pub_info.encryption_pub_key.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Member {} cannot be added as recovery_owner has a value set but no encryption public key is specified", id));
+      }
+
       member_certs->put(id, member_pub_info.cert);
       member_info->put(
-        id, {MemberStatus::ACCEPTED, member_pub_info.member_data});
+        id, {MemberStatus::ACCEPTED, member_pub_info.member_data, member_pub_info.recovery_owner});
 
       if (member_pub_info.encryption_pub_key.has_value())
       {
