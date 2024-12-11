@@ -18,6 +18,7 @@
 
 import * as jscrypto from "crypto";
 import { TextEncoder, TextDecoder } from "util";
+import forge from "node-forge";
 
 // Note: It is important that only types are imported here to prevent executing
 // the module at this point (which would query the ccf global before we polyfilled it).
@@ -38,6 +39,7 @@ import {
   JsonWebKeyRSAPrivate,
   JsonWebKeyEdDSAPublic,
   JsonWebKeyEdDSAPrivate,
+  Certificate,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -558,6 +560,31 @@ class CCFPolyfill implements CCF {
         format: "jwk",
       });
       return key.export({ type: "pkcs8", format: "pem" }).toString();
+    },
+    generateSelfSignedCert(
+      privateKey: string,
+      subjectName: string,
+      subjectAlternateNames: string[],
+      validityPeriodDays: number,
+      ca: boolean,
+      caPathLenConstraint?: number,
+    ): Certificate {
+      return {
+        cert: "ECC is not supported by node-forge package hence cannot generate cert",
+      };
+    },
+    generateEndorsedCert(
+      publicKey: string,
+      subjectName: string,
+      subjectAlternateNames: string[],
+      validityPeriodDays: number,
+      issuerPrivateKey: string,
+      issuerCert: string,
+      ca: boolean,
+    ): Certificate {
+      return {
+        cert: "ECC is not supported by node-forge package hence cannot generate cert",
+      };
     },
   };
 

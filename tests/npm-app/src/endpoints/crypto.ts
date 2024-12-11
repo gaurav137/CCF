@@ -224,6 +224,62 @@ export function isValidX509CertBundle(
   return { body: ccfcrypto.isValidX509CertBundle(pem) };
 }
 
+interface GenerateSelfSignedCertRequest {
+  privateKey: string;
+  publicKey: string;
+  subjectName: string;
+  subjectAlternateNames?: string[];
+  validityPeriodDays: number;
+  ca: boolean;
+  caPathLenConstraint?: number;
+}
+
+export function generateSelfSignedCert(
+  request: ccfapp.Request<GenerateSelfSignedCertRequest>,
+): ccfapp.Response {
+  let input: GenerateSelfSignedCertRequest = request.body.json();
+  const result = ccfcrypto.generateSelfSignedCert(
+    input.privateKey,
+    input.subjectName,
+    input.subjectAlternateNames ?? [],
+    input.validityPeriodDays,
+    input.ca,
+    input.caPathLenConstraint ?? 0,
+  );
+
+  return { body: result };
+}
+
+interface GenerateEndorsedCertRequest {
+  privateKey: string;
+  publicKey: string;
+  subjectName: string;
+  subjectAlternateNames?: string[];
+  validityPeriodDays: number;
+  issuerPrivateKey: string;
+  issuerCert: string;
+  ca: boolean;
+  caPathLenConstraint?: number;
+}
+
+export function generateEndorsedCert(
+  request: ccfapp.Request<GenerateEndorsedCertRequest>,
+): ccfapp.Response {
+  let input: GenerateEndorsedCertRequest = request.body.json();
+  const result = ccfcrypto.generateEndorsedCert(
+    input.publicKey,
+    input.subjectName,
+    input.subjectAlternateNames ?? [],
+    input.validityPeriodDays,
+    input.issuerPrivateKey,
+    input.issuerCert,
+    input.ca,
+    input.caPathLenConstraint ?? 0,
+  );
+
+  return { body: result };
+}
+
 interface IsValidX509CertChainRequest {
   chain: string;
   trusted: string;

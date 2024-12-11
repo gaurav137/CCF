@@ -73,6 +73,7 @@ namespace ccf::crypto
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
+      const std::optional<int> ca_path_len_constraint = std::nullopt,
       Signer signer = Signer::SUBJECT) const override;
 
     virtual std::vector<uint8_t> derive_shared_secret(
