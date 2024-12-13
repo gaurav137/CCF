@@ -274,6 +274,7 @@ class Member:
         common_dir,
         share_script,
         is_recovery_member=True,
+        is_recovery_owner=False,
         key_generator=None,
         member_data=None,
         authenticate_session=True,
@@ -285,6 +286,7 @@ class Member:
         self.share_script = share_script
         self.member_data = member_data
         self.is_recovery_member = is_recovery_member
+        self.is_recovery_owner = is_recovery_owner
         self.is_retired = False
         self.authenticate_session = authenticate_session
         assert self.authenticate_session == "COSE", self.authenticate_session
@@ -302,6 +304,9 @@ class Member:
         )
         self.member_info["data_json_file"] = (
             f"{self.local_id}_data.json" if member_data else None
+        )
+        self.member_info["recovery_owner"] = (
+            is_recovery_owner if is_recovery_member else None
         )
 
         if key_generator is not None:
