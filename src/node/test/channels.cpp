@@ -4,9 +4,9 @@
 
 #include "../channels.h"
 
+#include "ccf/crypto/certs.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
-#include "crypto/certs.h"
 #include "crypto/openssl/x509_time.h"
 #include "ds/non_blocking.h"
 #include "ds/ring_buffer.h"

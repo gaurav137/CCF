@@ -86,6 +86,7 @@ namespace ccf::crypto
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
+      std::optional<int> ca_path_len_constraint = std::nullopt,
       Signer signer = Signer::SUBJECT) const = 0;
 
   public:
@@ -95,10 +96,11 @@ namespace ccf::crypto
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
+      std::optional<int> ca_path_len_constraint = std::nullopt,
       Signer signer = Signer::SUBJECT) const
     {
       return sign_csr_impl(
-        issuer_cert, signing_request, valid_from, valid_to, ca, signer);
+        issuer_cert, signing_request, valid_from, valid_to, ca, ca_path_len_constraint, signer);
     }
 
     Pem self_sign(
@@ -106,7 +108,8 @@ namespace ccf::crypto
       const std::string& valid_from,
       const std::string& valid_to,
       const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
-      bool ca = true) const
+      bool ca = true,
+      std::optional<int> ca_path_len_constraint = std::nullopt) const
     {
       std::vector<SubjectAltName> sans;
       if (subject_alt_name.has_value())
@@ -114,7 +117,7 @@ namespace ccf::crypto
         sans.push_back(subject_alt_name.value());
       }
       auto csr = create_csr(name, sans);
-      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
+      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca, ca_path_len_constraint);
     }
 
     Pem self_sign(
@@ -122,10 +125,11 @@ namespace ccf::crypto
       const std::string& valid_from,
       const std::string& valid_to,
       const std::vector<SubjectAltName>& subject_alt_names,
-      bool ca = true) const
+      bool ca = true,
+      std::optional<int> ca_path_len_constraint = std::nullopt) const
     {
       auto csr = create_csr(subject_name, subject_alt_names);
-      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca);
+      return sign_csr_impl(std::nullopt, csr, valid_from, valid_to, ca, ca_path_len_constraint);
     }
 
     virtual std::vector<uint8_t> derive_shared_secret(

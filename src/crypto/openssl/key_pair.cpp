@@ -306,6 +306,7 @@ namespace ccf::crypto
     const std::string& valid_from,
     const std::string& valid_to,
     bool ca,
+    std::optional<int> ca_path_len_constraint,
     Signer signer) const
   {
     X509* icrt = NULL;
@@ -382,9 +383,18 @@ namespace ccf::crypto
     std::string constraints = "critical,CA:FALSE";
     if (ca)
     {
-      // 1 to allow for intermediate CAs with a different subject name,
-      // which can occur in service endorsements of some services.
-      constraints = "critical,CA:TRUE,pathlen:1";
+      int path_len;
+      if (!ca_path_len_constraint.has_value())
+      {
+        // 1 to allow for intermediate CAs with a different subject name,
+        // which can occur in service endorsements of some services.
+        path_len = 1;
+      }
+      else
+      {
+        path_len = ca_path_len_constraint.value();
+      }
+        constraints = fmt::format("critical,CA:TRUE,pathlen:{}", path_len);
     }
 
     // Add basic constraints

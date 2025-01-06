@@ -1,0 +1,7 @@
+FROM ghcr.io/microsoft/ccf/app/run-js/virtual:ccf-6.0.0-dev2
+
+COPY /cchost /usr/bin/cchost
+RUN chmod +x /usr/bin/cchost
+
+COPY /libjs_generic.virtual.so /usr/lib/ccf/libjs_generic.virtual.so
+RUN chmod +x /usr/lib/ccf/libjs_generic.virtual.so

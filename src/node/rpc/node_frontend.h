@@ -4,6 +4,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/crypto/certs.h"
 #include "ccf/http_query.h"
 #include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
@@ -13,7 +14,6 @@
 #include "ccf/pal/mem.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
-#include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "ds/std_formatters.h"
 #include "frontend.h"

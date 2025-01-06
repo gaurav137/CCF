@@ -2,11 +2,15 @@
 # Licensed under the Apache 2.0 License.
 #
 from base64 import b64encode
+from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.x509.extensions import ExtensionNotFound
+from cryptography.x509.oid import ExtensionOID
+from datetime import datetime, timedelta, timezone
 from jwcrypto import jwk
 import hmac
 import http
@@ -328,6 +332,147 @@ def test_npm_app(network, args):
 
         private_key = load_pem_private_key(r.body.json()["privateKey"].encode(), None)
         assert isinstance(private_key, X25519PrivateKey)
+
+        # Test self signed CA cert generation
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
+        ca_privk = r.body.json()["privateKey"]
+        utc_now = datetime.now(timezone.utc)
+        validatity_period_days = 2
+        r = c.post(
+            "/app/generateSelfSignedCert",
+            {
+                "privateKey": ca_privk,
+                "subjectName": "CN=ca",
+                "validityPeriodDays": validatity_period_days,
+                "ca": True,
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        ca_cert_pem = r.body.json()["cert"]
+        assert ca_cert_pem.startswith("-----BEGIN CERTIFICATE-----")
+        ca_cert = x509.load_pem_x509_certificate(str.encode(ca_cert_pem))
+        assert (
+            ca_cert.not_valid_before_utc < utc_now
+        ), f"not_valid_before_utc: {ca_cert.not_valid_before_utc}, utc_now: {utc_now}"
+        atleast_after_utc = (
+            utc_now + timedelta(days=validatity_period_days) - timedelta(seconds=2)
+        )
+        assert (
+            ca_cert.not_valid_after_utc >= atleast_after_utc
+        ), f"not_valid_after_utc: {ca_cert.not_valid_after_utc}, atleast_after_utc: {atleast_after_utc}"
+        basic_constraints = ca_cert.extensions.get_extension_for_oid(
+            ExtensionOID.BASIC_CONSTRAINTS
+        ).value
+        assert basic_constraints.ca == True, f"{basic_constraints.ca}"
+        assert basic_constraints.path_length == 0, f"{basic_constraints.path_length}"
+        try:
+            ca_cert.extensions.get_extension_for_oid(
+                ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+            )
+            assert False, "get_extension_for_oid should not succeed"
+        except ExtensionNotFound:
+            pass
+
+        # Test self signed CA cert and endorsed cert generation
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
+        ca_privk = r.body.json()["privateKey"]
+        utc_now = datetime.now(timezone.utc)
+        validatity_period_days = 2
+        ca_path_len_constraint = 1
+        dns_name = "ca.bar.com"
+        r = c.post(
+            "/app/generateSelfSignedCert",
+            {
+                "privateKey": ca_privk,
+                "subjectName": "CN=ca",
+                "subjectAlternateNames": [f"dNSName:{dns_name}"],
+                "validityPeriodDays": validatity_period_days,
+                "ca": True,
+                "caPathLenConstraint": ca_path_len_constraint,
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        ca_cert_pem = r.body.json()["cert"]
+        assert ca_cert_pem.startswith("-----BEGIN CERTIFICATE-----")
+        ca_cert = x509.load_pem_x509_certificate(str.encode(ca_cert_pem))
+        assert (
+            ca_cert.not_valid_before_utc < utc_now
+        ), f"not_valid_before_utc: {ca_cert.not_valid_before_utc}, utc_now: {utc_now}"
+        atleast_after_utc = (
+            utc_now + timedelta(days=validatity_period_days) - timedelta(seconds=2)
+        )
+        assert (
+            ca_cert.not_valid_after_utc >= atleast_after_utc
+        ), f"not_valid_after_utc: {ca_cert.not_valid_after_utc}, atleast_after_utc: {atleast_after_utc}"
+        basic_constraints = ca_cert.extensions.get_extension_for_oid(
+            ExtensionOID.BASIC_CONSTRAINTS
+        ).value
+        assert basic_constraints.ca == True, f"{basic_constraints.ca}"
+        assert (
+            basic_constraints.path_length == ca_path_len_constraint
+        ), f"{basic_constraints.path_length}"
+        alt_name_constraints = ca_cert.extensions.get_extension_for_oid(
+            ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+        ).value
+        assert (
+            alt_name_constraints.get_values_for_type(x509.DNSName)[0] == dns_name
+        ), f"alt_name_constraints: {alt_name_constraints}"
+
+        # Generate the child key pair and certificate endorsed by the above CA certificate.
+        r = c.post("/app/generateEcdsaKeyPair", {"curve": "secp384r1"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
+        child_pubk = r.body.json()["publicKey"]
+        dns_name = "*.bar.com"
+        r = c.post(
+            "/app/generateEndorsedCert",
+            {
+                "publicKey": child_pubk,
+                "subjectName": "CN=foo",
+                "subjectAlternateNames": [f"dNSName:{dns_name}"],
+                "validityPeriodDays": 2,
+                "issuerPrivateKey": ca_privk,
+                "issuerCert": ca_cert_pem,
+                "ca": False,
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        child_cert_pem = r.body.json()["cert"]
+        assert child_cert_pem.startswith("-----BEGIN CERTIFICATE-----")
+        child_cert = x509.load_pem_x509_certificate(str.encode(child_cert_pem))
+        assert (
+            child_cert.not_valid_before_utc < utc_now
+        ), f"not_valid_before_utc: {child_cert.not_valid_before_utc}, utc_now: {utc_now}"
+        atleast_after_utc = (
+            utc_now + timedelta(days=validatity_period_days) - timedelta(seconds=2)
+        )
+        assert (
+            child_cert.not_valid_after_utc >= atleast_after_utc
+        ), f"not_valid_after_utc: {child_cert.not_valid_after_utc}, atleast_after_utc: {atleast_after_utc}"
+        basic_constraints = child_cert.extensions.get_extension_for_oid(
+            ExtensionOID.BASIC_CONSTRAINTS
+        ).value
+        assert basic_constraints.ca == False, f"{basic_constraints.ca}"
+        assert basic_constraints.path_length == None, f"{basic_constraints.path_length}"
+        alt_name_constraints = child_cert.extensions.get_extension_for_oid(
+            ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+        ).value
+        alt_name_constraints = child_cert.extensions.get_extension_for_oid(
+            ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+        ).value
+        assert (
+            alt_name_constraints.get_values_for_type(x509.DNSName)[0] == dns_name
+        ), f"alt_name_constraints: {alt_name_constraints}"
 
         aes_key_to_wrap = infra.crypto.generate_aes_key(256)
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
