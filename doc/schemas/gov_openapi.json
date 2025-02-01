@@ -344,6 +344,9 @@
           "member_data": {
             "$ref": "#/components/schemas/json"
           },
+          "recovery_role": {
+            "$ref": "#/components/schemas/MemberRecoveryRole"
+          },
           "status": {
             "$ref": "#/components/schemas/MemberStatus"
           }
@@ -411,6 +414,14 @@
           "$ref": "#/components/schemas/string"
         },
         "type": "object"
+      },
+      "MemberRecoveryRole": {
+        "enum": [
+          "NonParticipant",
+          "Participant",
+          "Owner"
+        ],
+        "type": "string"
       },
       "MemberStatus": {
         "enum": [
@@ -800,6 +811,24 @@
       },
       "OpenIDJWKMetadata": {
         "properties": {
+          "constraint": {
+            "$ref": "#/components/schemas/string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          },
+          "public_key": {
+            "$ref": "#/components/schemas/base64string"
+          }
+        },
+        "required": [
+          "issuer",
+          "public_key"
+        ],
+        "type": "object"
+      },
+      "OpenIDJWKMetadataLegacy": {
+        "properties": {
           "cert": {
             "$ref": "#/components/schemas/base64string"
           },
@@ -811,10 +840,16 @@
           }
         },
         "required": [
-          "cert",
-          "issuer"
+          "issuer",
+          "cert"
         ],
         "type": "object"
+      },
+      "OpenIDJWKMetadataLegacy_array": {
+        "items": {
+          "$ref": "#/components/schemas/OpenIDJWKMetadataLegacy"
+        },
+        "type": "array"
       },
       "OpenIDJWKMetadata_array": {
         "items": {
@@ -1216,6 +1251,12 @@
       "string": {
         "type": "string"
       },
+      "string_to_CodeStatus": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/CodeStatus"
+        },
+        "type": "object"
+      },
       "string_to_JwtIssuerMetadata": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JwtIssuerMetadata"
@@ -1225,6 +1266,12 @@
       "string_to_KeyIdInfo_array": {
         "additionalProperties": {
           "$ref": "#/components/schemas/KeyIdInfo_array"
+        },
+        "type": "object"
+      },
+      "string_to_OpenIDJWKMetadataLegacy_array": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/OpenIDJWKMetadataLegacy_array"
         },
         "type": "object"
       },
@@ -1301,7 +1348,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.5.0"
+    "version": "4.6.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1757,6 +1804,31 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "$ref": "#/components/schemas/string_to_OpenIDJWKMetadataLegacy_array"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/jwt/public_signing_keys_metadata_v2": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvJwtPublicSigningKeysMetadataV2",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
                   "$ref": "#/components/schemas/string_to_OpenIDJWKMetadata_array"
                 }
               }
@@ -2083,6 +2155,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/string_to_string_to_UVMEndorsementsData"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/host_data": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualHostData",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/measurements": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualMeasurements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_CodeStatus"
                 }
               }
             },

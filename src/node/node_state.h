@@ -9,7 +9,6 @@
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
-#include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
 #include "ccf/service/node_info_network.h"
@@ -34,6 +33,7 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
+#include "pal/quote_generation.h"
 #include "quote_endorsements_client.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -298,41 +298,43 @@ namespace ccf
       }
 
       // Verify that the security policy matches the quoted digest of the policy
+      if (!config.attestation.environment.security_policy.has_value())
+      {
+        LOG_INFO_FMT(
+          "Security policy not set, skipping check against attestation host "
+          "data");
+      }
+      else
+      {
+        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
+        if (!quoted_digest.has_value())
+        {
+          throw std::logic_error("Unable to find host data in attestation");
+        }
+
+        auto const& security_policy =
+          config.attestation.environment.security_policy.value();
+
+        auto security_policy_digest =
+          quote_info.format == QuoteFormat::amd_sev_snp_v1 ?
+          ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy)) :
+          ccf::crypto::Sha256Hash(security_policy);
+        if (security_policy_digest != quoted_digest.value())
+        {
+          throw std::logic_error(fmt::format(
+            "Digest of decoded security policy \"{}\" {} does not match "
+            "attestation host data {}",
+            security_policy,
+            security_policy_digest.hex_str(),
+            quoted_digest.value().hex_str()));
+        }
+        LOG_INFO_FMT(
+          "Successfully verified attested security policy {}",
+          security_policy_digest);
+      }
+
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        if (!config.attestation.environment.security_policy.has_value())
-        {
-          LOG_INFO_FMT(
-            "Security policy not set, skipping check against attestation host "
-            "data");
-        }
-        else
-        {
-          auto quoted_digest = AttestationProvider::get_host_data(quote_info);
-          if (!quoted_digest.has_value())
-          {
-            throw std::logic_error("Unable to find host data in attestation");
-          }
-
-          auto const& security_policy =
-            config.attestation.environment.security_policy.value();
-
-          auto security_policy_digest =
-            ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy));
-          if (security_policy_digest != quoted_digest.value())
-          {
-            throw std::logic_error(fmt::format(
-              "Digest of decoded security policy \"{}\" {} does not match "
-              "attestation host data {}",
-              security_policy,
-              security_policy_digest.hex_str(),
-              quoted_digest.value().hex_str()));
-          }
-          LOG_INFO_FMT(
-            "Successfully verified attested security policy {}",
-            security_policy_digest);
-        }
-
         if (!config.attestation.environment.uvm_endorsements.has_value())
         {
           LOG_INFO_FMT(
@@ -543,9 +545,6 @@ namespace ccf
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
-
-          history->set_service_signing_identity(
-            network.identity->get_key_pair(), config.cose_signatures);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -1049,6 +1048,37 @@ namespace ccf
         index = s.seqno;
         view = s.view;
       }
+      else
+      {
+        throw std::logic_error("No signature found after recovery");
+      }
+
+      ccf::COSESignaturesConfig cs_cfg{};
+      auto lcs = tx.ro(network.cose_signatures)->get();
+      if (lcs.has_value())
+      {
+        CoseSignature cs = lcs.value();
+        LOG_INFO_FMT("COSE signature found after recovery");
+        try
+        {
+          auto [issuer, subject] = cose::extract_iss_sub_from_sig(cs);
+          LOG_INFO_FMT(
+            "COSE signature issuer: {}, subject: {}", issuer, subject);
+          cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
+        }
+        catch (const cose::COSEDecodeError& e)
+        {
+          LOG_FAIL_FMT("COSE signature decode error: {}", e.what());
+          throw;
+        }
+      }
+      else
+      {
+        LOG_INFO_FMT("No COSE signature found after recovery");
+      }
+
+      history->set_service_signing_identity(
+        network.identity->get_key_pair(), cs_cfg);
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)
@@ -2619,7 +2649,7 @@ namespace ccf
         throw std::logic_error("Snapshotter already initialised");
       }
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, config.snapshot_tx_interval);
+        writer_factory, network.tables, config.snapshots.tx_count);
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)
