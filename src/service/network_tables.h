@@ -216,6 +216,8 @@ namespace ccf
       Tables::ENCRYPTED_PAST_LEDGER_SECRET};
     const EncryptedSubmittedShares encrypted_submitted_shares = {
       Tables::ENCRYPTED_SUBMITTED_SHARES};
+    const EncryptedSubmittedMultipleShares encrypted_submitted_multiple_shares = {
+      Tables::ENCRYPTED_SUBMITTED_MULTIPLE_SHARES};
 
     // The signatures and serialised_tree tables should always be written to at
     // the same time so that the root of the tree in the signatures table
@@ -237,7 +239,8 @@ namespace ccf
           snapshot_evidence,
           shares,
           encrypted_ledger_secrets,
-          encrypted_submitted_shares),
+          encrypted_submitted_shares,
+          encrypted_submitted_multiple_shares),
         get_all_signature_tables());
     }
 
